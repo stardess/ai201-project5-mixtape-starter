@@ -96,3 +96,15 @@ This flow shows how a social action triggers a notification — a pattern used a
 **Your fix and side-effect check:** Removed the `today.weekday() != 6` guard so any consecutive calendar day increments the streak, including Sunday after Saturday. Verified with `pytest tests/test_streaks.py` (all 5 tests pass). Also confirmed `test_streak_resets_after_skipped_day` still passes — skipping Tuesday between Monday and Wednesday still resets correctly.
 
 ---
+
+### Issue #2 — Friends Listening Now shows people from yesterday
+
+**How you reproduced it:** Wrote a script that mirrors nova's report: darius has a `ListeningEvent` at 11pm on June 16, and nova checks the feed at 9am on June 17. Called `get_friends_listening_now(nova.id)` with `datetime.now` patched to the morning time. Before the fix, darius appeared in the feed with `listened_at` from the previous night.
+
+**How you found the root cause:** Traced `GET /feed/<user_id>/listening-now` in `routes/feed.py` to `feed_service.get_friends_listening_now()`. The docstring says friends who listened "recently," but the filter used `RECENT_THRESHOLD = timedelta(hours=24)` — a rolling 24-hour window, not "today."
+
+**The root cause:** A friend who listened at 11pm yesterday is still within the last 24 hours at 9am the next morning, so their event passed the cutoff filter even though it was not from the current calendar day.
+
+**Your fix and side-effect check:** Changed the filter from a rolling 24-hour window (`now - timedelta(hours=24)`) to the start of the current UTC calendar day (`today_start`). Verified the reproduction script returns 0 friends yesterday evening and 1 friend after a listen today. Confirmed `get_activity_feed()` was not changed — it intentionally returns historical events without a today-only filter.
+
+---
