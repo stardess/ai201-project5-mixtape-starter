@@ -120,3 +120,15 @@ This flow shows how a social action triggers a notification — a pattern used a
 **Your fix and side-effect check:** Removed the `outerjoin` on `song_tags`. Tags are still included in each result via `Song.to_dict()`, which loads them through the model's `tags` relationship. Verified with `pytest tests/test_search.py` (all 5 tests pass, including `test_search_no_duplicates_multi_tag_song`).
 
 ---
+
+### Issue #4 — Rating notifications never sent
+
+**How you reproduced it:** In a Python shell, created aaliya (song sharer) and kenji (rater), shared a song owned by aaliya, then called `rate_song(kenji.id, song.id, 5)` and checked `get_notifications(aaliya.id)`. Before the fix, the notification count was 0 even though the rating was saved.
+
+**How you found the root cause:** Compared `rate_song()` to `add_to_playlist()` line-by-line in `notification_service.py`. `add_to_playlist()` calls `create_notification()` for `song.shared_by` when someone else adds the song. `rate_song()` saved the `Rating` and committed but never called `create_notification()` — the notification step was simply missing.
+
+**The root cause:** `rate_song()` was architecturally incomplete. It handled rating persistence but omitted the notification creation pattern that `add_to_playlist()` already implements for the same `song.shared_by` recipient.
+
+**Your fix and side-effect check:** Added a `create_notification()` call after saving the rating when `song.shared_by != user_id`, using type `"song_rated"`. Verified the reproduction script now returns 1 notification. Confirmed self-ratings (`shared_by == user_id`) still do not generate a notification, matching the playlist-add behavior.
+
+---
