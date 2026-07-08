@@ -2,7 +2,15 @@
 
 ## AI Usage
 
-_To be completed in Milestone 4 after bug fixes are done._
+I used Cursor (AI-assisted IDE) throughout this project. Specific uses:
+
+1. **Codebase orientation (Milestone 1):** I asked the AI to read `models.py`, all route files, and all service files, then help draft the codebase map in `submission.md`. It traced the Routes → Services → Models pattern and documented two data flows (playlist-add notification and listen/streak update). I verified its file descriptions by opening each file myself and checking that function names and call chains matched.
+
+2. **Debugging setup issues:** When Flask failed with "Port 5000 is in use," the AI identified macOS AirPlay Receiver as the cause and suggested `--port 5001`. I later disabled AirPlay and confirmed port 5000 works. The AI also clarified that a 404 on `http://127.0.0.1:5000/` is expected — the app is a JSON API with no root route, not a broken server.
+
+3. **Bug investigation:** For each bug, I asked the AI to help trace call chains from routes to services. For Issue #4, it suggested comparing `rate_song()` to `add_to_playlist()` line-by-line — that comparison immediately showed the missing `create_notification()` call. For Issue #3, the AI noted the `outerjoin` on `song_tags` was unnecessary; I verified duplicates at the SQL level with `db.session.query(Song.id).outerjoin(...).all()` returning 3 rows for a 3-tag song.
+
+**Where I verified or overrode AI output:** The AI initially assumed the search duplicate bug would show up via `GET /songs/search?q=Anthem` in the browser. I ran the query manually and saw only 1 result due to SQLAlchemy ORM deduplication — so I dug deeper with a raw `Song.id` query to confirm the join was still the root cause. I also ran `pytest` after every fix myself rather than trusting the AI's "this should work" summaries.
 
 ---
 
@@ -142,5 +150,33 @@ This flow shows how a social action triggers a notification — a pattern used a
 **The root cause:** An off-by-one error in the return statement: `return [song.to_dict() for song in songs[:-1]]` excluded the last song in the ordered result. Adding a new song shifted which entry was "last," matching darius's report that the missing song rotated with each addition.
 
 **Your fix and side-effect check:** Changed the return to `return [song.to_dict() for song in songs]` so all entries are included. Verified with `pytest tests/test_playlists.py` (all 3 tests pass). Confirmed empty playlists still return `[]` via `test_empty_playlist_returns_empty_list`.
+
+---
+
+## Regression Test
+
+**Test file:** `tests/test_feed.py`
+
+**What it verifies:** `test_listening_now_excludes_yesterday_evening` reproduces Issue #2 — a friend who listened at 11pm yesterday must not appear in nova's "Friends Listening Now" feed at 9am the next day. It patches `datetime.now` to control the current time, matching the conditional date-boundary behavior from the bug report.
+
+**Why it would have caught the bug:** Before the fix, `feed_service.py` used a rolling 24-hour cutoff (`now - timedelta(hours=24)`). A listen at 11pm yesterday is still within 24 hours at 9am today, so the test assertion `assert feed == []` would fail. After switching to a start-of-today filter, the test passes.
+
+**Modeled after:** The existing streak tests in `tests/test_streaks.py`, which use fixed `datetime` values instead of HTTP requests to isolate service-layer logic.
+
+The repo also includes regression tests for Issues #1, #3, and #5 in `tests/test_streaks.py`, `tests/test_search.py`, and `tests/test_playlists.py` respectively — all of which failed before their fixes and pass now.
+
+---
+
+## Git Log Screenshot
+
+Screenshot saved as `git_log_screenshot.png` in the repo root (output of `git log --oneline` on `bugfix/mixtape`):
+
+```
+4b14fee fix: return all playlist songs instead of excluding the last entry
+d665b98 fix: create notification when a friend rates a shared song
+5850641 fix: remove song_tags join that duplicated multi-tag search results
+630f954 fix: filter listening-now feed by calendar day instead of 24 hours
+adbfda7 fix: allow streak increment on Sunday after consecutive-day listen
+```
 
 ---
