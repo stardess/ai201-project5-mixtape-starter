@@ -108,3 +108,15 @@ This flow shows how a social action triggers a notification — a pattern used a
 **Your fix and side-effect check:** Changed the filter from a rolling 24-hour window (`now - timedelta(hours=24)`) to the start of the current UTC calendar day (`today_start`). Verified the reproduction script returns 0 friends yesterday evening and 1 friend after a listen today. Confirmed `get_activity_feed()` was not changed — it intentionally returns historical events without a today-only filter.
 
 ---
+
+### Issue #3 — The same song keeps showing up twice in search
+
+**How you reproduced it:** Called `GET /songs/search?q=Anthem` against seeded data (Crown Heights Anthem has 3 tags). Also ran `db.session.query(Song.id).outerjoin(song_tags, ...).filter(title ilike '%Anthem%').all()` in a Python shell — this returned **3 identical song ID tuples** for one song, while songs with 0–1 tags returned the correct count. The bug is conditional: only songs with multiple tags are affected.
+
+**How you found the root cause:** Traced `GET /songs/search` in `routes/songs.py` to `search_service.search_songs()`. Noticed an `outerjoin` on the `song_tags` association table even though the filter only checks `Song.title` and `Song.artist` — tags are not part of the search criteria.
+
+**The root cause:** The unnecessary `outerjoin(song_tags)` multiplies SQL result rows — one row per tag on a matching song. A song with 3 tags produces 3 joined rows for a single title match, which surfaces as duplicate entries in the search results.
+
+**Your fix and side-effect check:** Removed the `outerjoin` on `song_tags`. Tags are still included in each result via `Song.to_dict()`, which loads them through the model's `tags` relationship. Verified with `pytest tests/test_search.py` (all 5 tests pass, including `test_search_no_duplicates_multi_tag_song`).
+
+---
