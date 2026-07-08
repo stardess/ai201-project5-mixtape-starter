@@ -132,3 +132,15 @@ This flow shows how a social action triggers a notification — a pattern used a
 **Your fix and side-effect check:** Added a `create_notification()` call after saving the rating when `song.shared_by != user_id`, using type `"song_rated"`. Verified the reproduction script now returns 1 notification. Confirmed self-ratings (`shared_by == user_id`) still do not generate a notification, matching the playlist-add behavior.
 
 ---
+
+### Issue #5 — The last song in a playlist never shows up
+
+**How you reproduced it:** Ran `pytest tests/test_playlists.py::test_playlist_returns_all_songs` with a playlist seeded with 5 songs. Before the fix, `get_playlist_songs()` returned 4 songs — always missing the most recently added (last) entry. `test_playlist_returns_songs_in_order` also failed because `Track 5` was absent.
+
+**How you found the root cause:** Traced `GET /playlists/<playlist_id>/songs` in `routes/playlists.py` to `playlist_service.get_playlist_songs()`. The query correctly fetches all songs ordered by `position`, but the return statement sliced the list with `songs[:-1]`, dropping the final element.
+
+**The root cause:** An off-by-one error in the return statement: `return [song.to_dict() for song in songs[:-1]]` excluded the last song in the ordered result. Adding a new song shifted which entry was "last," matching darius's report that the missing song rotated with each addition.
+
+**Your fix and side-effect check:** Changed the return to `return [song.to_dict() for song in songs]` so all entries are included. Verified with `pytest tests/test_playlists.py` (all 3 tests pass). Confirmed empty playlists still return `[]` via `test_empty_playlist_returns_empty_list`.
+
+---
