@@ -169,14 +169,16 @@ The repo also includes regression tests for Issues #1, #3, and #5 in `tests/test
 
 ## Git Log Screenshot
 
-Screenshot saved as `git_log_screenshot.png` in the repo root (output of `git log --oneline` on `bugfix/mixtape`):
+Screenshot saved as `git_log_screenshot.png` in the repo root (output of `git log --oneline -7` on `bugfix/mixtape`):
 
 ```
+2923905 docs: complete submission with AI usage, regression test, and git log
 4b14fee fix: return all playlist songs instead of excluding the last entry
 d665b98 fix: create notification when a friend rates a shared song
 5850641 fix: remove song_tags join that duplicated multi-tag search results
 630f954 fix: filter listening-now feed by calendar day instead of 24 hours
 adbfda7 fix: allow streak increment on Sunday after consecutive-day listen
+2dfdeaa Add .gitignore file and update README with setup instructions
 ```
 
 ---
